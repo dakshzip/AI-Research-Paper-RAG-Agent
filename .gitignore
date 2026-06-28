@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+.streamlit/secrets.toml
+.idea/
+.vscode/
+*.egg-info/
+dist/
+build/
+.DS_Store
+qdrant_data/
