@@ -1,4 +1,4 @@
-# SCA using RAG
+# SSA using RAG
 
 A document Q&A chatbot powered by **Retrieval-Augmented Generation (RAG)**. Upload PDF or TXT files, ask questions, and get answers grounded in your documents—with source citations, conversational follow-ups, and optional quality scoring.
 
