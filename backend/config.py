@@ -16,17 +16,17 @@ QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 # Embeddings
-DENSE_EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
+DENSE_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 SPARSE_EMBEDDING_MODEL = "Qdrant/bm25"
 DENSE_VECTOR_NAME = "dense"
 SPARSE_VECTOR_NAME = "sparse"
 EMBEDDING_DEVICE = "cpu"
 
 # Reranker
-RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+RERANKER_MODEL = "BAAI/bge-reranker-base"
 
 # Retrieval
-RETRIEVE_K = int(os.getenv("RETRIEVE_K", "20"))
+RETRIEVE_K = int(os.getenv("RETRIEVE_K", "8"))
 FINAL_K = int(os.getenv("FINAL_K", "5"))
 
 # Document processing

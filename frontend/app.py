@@ -19,7 +19,7 @@ from backend.embeddings import get_dense_embeddings, get_sparse_embeddings  # no
 from backend.evaluation.ragas_eval import evaluate_rag_response  # noqa: E402
 from backend.ingestion import load_and_split_documents  # noqa: E402
 from backend.rag_chain import create_rag_chain  # noqa: E402
-from backend.retrieval import build_retriever  # noqa: E402
+from backend.retrieval import build_retriever, get_reranker_model  # noqa: E402
 from backend.vectorstore import check_qdrant_connection, create_vectorstore  # noqa: E402
 
 
@@ -94,6 +94,11 @@ def _load_dense_embeddings():
 @st.cache_resource
 def _load_sparse_embeddings():
     return get_sparse_embeddings()
+
+
+@st.cache_resource
+def _load_reranker_model():
+    return get_reranker_model()
 
 
 def main() -> None:
@@ -440,13 +445,14 @@ def main() -> None:
                     try:
                         dense = _load_dense_embeddings()
                         sparse = _load_sparse_embeddings()
+                        reranker = _load_reranker_model()
                         chunks = load_and_split_documents(uploaded_files)
 
                         if not chunks:
                             st.error("No supported documents were loaded.")
                         else:
                             vectorstore = create_vectorstore(chunks, dense, sparse)
-                            retriever = build_retriever(vectorstore)
+                            retriever = build_retriever(vectorstore, reranker)
                             groq_llm = ChatGroq(
                                 groq_api_key=groq_api_key,
                                 model_name=config.GROQ_MODEL,
