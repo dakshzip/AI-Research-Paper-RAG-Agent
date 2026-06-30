@@ -15,12 +15,35 @@ QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
 # Groq LLM
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
+# RAGAS judge — needs a stronger model than the chat LLM to emit reliable structured
+# scores; the small instant model frequently returns unparseable judgments (NaN).
+RAGAS_JUDGE_MODEL = os.getenv("RAGAS_JUDGE_MODEL", "llama-3.3-70b-versatile")
+
 # Embeddings
 DENSE_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 SPARSE_EMBEDDING_MODEL = "Qdrant/bm25"
 DENSE_VECTOR_NAME = "dense"
 SPARSE_VECTOR_NAME = "sparse"
-EMBEDDING_DEVICE = "cpu"
+
+
+def _detect_device() -> str:
+    """Pick the fastest available torch device: MPS (Apple) > CUDA > CPU."""
+    override = os.getenv("EMBEDDING_DEVICE")
+    if override:
+        return override
+    try:
+        import torch
+
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+EMBEDDING_DEVICE = _detect_device()
 
 # Reranker
 RERANKER_MODEL = "BAAI/bge-reranker-base"

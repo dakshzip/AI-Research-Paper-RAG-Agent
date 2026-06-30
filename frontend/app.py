@@ -20,7 +20,21 @@ from backend.evaluation.ragas_eval import evaluate_rag_response  # noqa: E402
 from backend.ingestion import load_and_split_documents  # noqa: E402
 from backend.rag_chain import create_rag_chain  # noqa: E402
 from backend.retrieval import build_retriever, get_reranker_model  # noqa: E402
-from backend.vectorstore import check_qdrant_connection, create_vectorstore  # noqa: E402
+from backend.vectorstore import (  # noqa: E402
+    check_qdrant_connection,
+    connect_existing_vectorstore,
+    create_vectorstore,
+    get_indexed_sources,
+)
+
+
+# Marker the model emits when the documents don't answer the question (see prompts/rag_system.txt).
+NOT_IN_DOCS_MARKER = "This cannot be answered from the information provided in your documents."
+
+
+def _answer_grounded_in_docs(answer: str) -> bool:
+    """False when the model declared the answer is not supported by the documents."""
+    return NOT_IN_DOCS_MARKER.lower() not in answer.lower()
 
 
 def _format_sources(documents: list[Document]) -> list[dict]:
@@ -424,7 +438,7 @@ def main() -> None:
         enable_ragas = st.checkbox(
             "Enable RAGAS evaluation",
             value=False,
-            help="Score each answer for faithfulness and relevancy (adds a few seconds).",
+            help="Score each answer for relevancy to the question (adds a few seconds).",
         )
 
         qdrant_ok, qdrant_error = check_qdrant_connection()
@@ -432,6 +446,44 @@ def main() -> None:
             st.success("Qdrant connected")
         else:
             st.error(qdrant_error)
+
+        existing_sources = get_indexed_sources() if qdrant_ok else []
+        if existing_sources:
+            st.markdown("---")
+            st.subheader("Indexed Documents")
+            for name in existing_sources:
+                st.caption(f"• {name}")
+            if st.button("Resume with existing documents", use_container_width=True):
+                if not groq_api_key:
+                    st.error("Please enter your Groq API Key.")
+                else:
+                    with st.spinner("Reconnecting to existing index..."):
+                        try:
+                            dense = _load_dense_embeddings()
+                            sparse = _load_sparse_embeddings()
+                            reranker = _load_reranker_model()
+                            vectorstore = connect_existing_vectorstore(dense, sparse)
+                            retriever = build_retriever(vectorstore, reranker)
+                            groq_llm = ChatGroq(
+                                groq_api_key=groq_api_key,
+                                model_name=config.GROQ_MODEL,
+                            )
+                            st.session_state.rag_chain = create_rag_chain(groq_llm, retriever)
+                            st.session_state.groq_api_key = groq_api_key
+                            st.session_state.documents_processed = True
+                            st.session_state.messages = [
+                                {
+                                    "role": "ai",
+                                    "content": "Reconnected to existing documents. Ask me anything!",
+                                    "sources": [],
+                                    "is_welcome": True,
+                                }
+                            ]
+                            st.session_state.last_ragas_scores = None
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Reconnection failed: {exc}")
+            st.markdown("---")
 
         if st.button("Process Documents and Start Chat", use_container_width=True):
             if not groq_api_key:
@@ -476,20 +528,21 @@ def main() -> None:
 
         if st.session_state.last_ragas_scores:
             st.markdown("---")
-            st.subheader("Latest RAGAS Scores")
+            st.subheader("Latest RAGAS Score")
             scores = st.session_state.last_ragas_scores
             if scores.get("error"):
                 st.warning(scores["error"])
-            else:
-                if scores.get("faithfulness") is not None:
-                    st.metric("Faithfulness", f"{scores['faithfulness']:.2f}")
-                if scores.get("answer_relevancy") is not None:
-                    st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
+            elif scores.get("answer_relevancy") is not None:
+                st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
 
         st.markdown("---")
-        st.markdown(
-            "**Stack:** Qdrant · BGE-large · BM25 · BGE reranker · Groq · RAGAS · Streamlit"
-        )
+        if existing_sources:
+            st.subheader("In Database")
+            st.caption("Available from previous sessions — no need to re-upload.")
+            for name in existing_sources:
+                st.markdown(f"📄 {name}")
+        else:
+            st.caption("No documents indexed yet. Upload files to get started.")
 
     if not st.session_state.documents_processed:
         st.info(
@@ -538,18 +591,38 @@ def main() -> None:
     if user_query and st.session_state.rag_chain:
         st.session_state.messages.append({"role": "human", "content": user_query})
 
-        with st.spinner("Generating answer..."):
+        context_docs: list = []
+        answer_parts: list[str] = []
+
+        with chat_container:
+            st.markdown(
+                f'<div class="chat-message-user"><strong>You</strong>{html.escape(user_query)}</div>',
+                unsafe_allow_html=True,
+            )
+            stream_placeholder = st.empty()
             try:
-                response = st.session_state.rag_chain.invoke(
+                for chunk in st.session_state.rag_chain.stream(
                     {
                         "input": user_query,
                         "chat_history": _chain_chat_history()[:-1],
                     }
-                )
-                ai_answer = response["answer"]
-                context_docs = response.get("context", [])
-                sources = _format_sources(context_docs)
+                ):
+                    if "context" in chunk:
+                        context_docs = chunk["context"]
+                    if chunk.get("answer"):
+                        answer_parts.append(chunk["answer"])
+                        stream_placeholder.markdown(
+                            f'<div class="chat-message-ai"><strong>Assistant</strong>'
+                            f'{html.escape("".join(answer_parts))}</div>',
+                            unsafe_allow_html=True,
+                        )
 
+                ai_answer = "".join(answer_parts)
+                sources = (
+                    _format_sources(context_docs)
+                    if _answer_grounded_in_docs(ai_answer)
+                    else []
+                )
                 st.session_state.messages.append(
                     {
                         "role": "ai",
