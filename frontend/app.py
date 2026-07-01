@@ -23,8 +23,8 @@ from backend.retrieval import build_retriever, get_reranker_model  # noqa: E402
 from backend.vectorstore import (  # noqa: E402
     check_qdrant_connection,
     connect_existing_vectorstore,
-    create_vectorstore,
     get_indexed_sources,
+    upsert_documents,
 )
 
 
@@ -113,6 +113,40 @@ def _load_sparse_embeddings():
 @st.cache_resource
 def _load_reranker_model():
     return get_reranker_model()
+
+
+def _init_rag_chain(groq_api_key: str, uploaded_files=None) -> str | None:
+    """Build the RAG chain and store it in session state.
+
+    When uploaded_files is provided, their chunks are added to the persistent
+    index (additive — existing documents are kept). Otherwise the app connects to
+    the already-indexed collection. Returns an error string on failure, else None.
+    """
+    dense = _load_dense_embeddings()
+    sparse = _load_sparse_embeddings()
+    reranker = _load_reranker_model()
+
+    if uploaded_files:
+        chunks = load_and_split_documents(uploaded_files)
+        if not chunks:
+            return "No supported documents were loaded."
+        vectorstore = upsert_documents(chunks, dense, sparse)
+        welcome = "Documents processed. Ask me anything about them!"
+    else:
+        vectorstore = connect_existing_vectorstore(dense, sparse)
+        welcome = "Connected to indexed documents. Ask me anything!"
+
+    retriever = build_retriever(vectorstore, reranker)
+    groq_llm = ChatGroq(groq_api_key=groq_api_key, model_name=config.GROQ_MODEL)
+
+    st.session_state.rag_chain = create_rag_chain(groq_llm, retriever)
+    st.session_state.groq_api_key = groq_api_key
+    st.session_state.documents_processed = True
+    st.session_state.messages = [
+        {"role": "ai", "content": welcome, "sources": [], "is_welcome": True}
+    ]
+    st.session_state.last_ragas_scores = None
+    return None
 
 
 def main() -> None:
@@ -418,6 +452,8 @@ def main() -> None:
         st.session_state.rag_chain = None
     if "last_ragas_scores" not in st.session_state:
         st.session_state.last_ragas_scores = None
+    if "auto_connect_attempted" not in st.session_state:
+        st.session_state.auto_connect_attempted = False
 
     with st.sidebar:
         st.header("Setup")
@@ -425,7 +461,8 @@ def main() -> None:
         groq_api_key = st.text_input(
             "Groq API Key",
             type="password",
-            help="Get your key from the Groq console.",
+            value=config.GROQ_API_KEY,
+            help="Get your key from the Groq console, or set GROQ_API_KEY in .env.",
         )
 
         st.subheader("Upload Documents")
@@ -448,42 +485,23 @@ def main() -> None:
             st.error(qdrant_error)
 
         existing_sources = get_indexed_sources() if qdrant_ok else []
-        if existing_sources:
-            st.markdown("---")
-            st.subheader("Indexed Documents")
-            for name in existing_sources:
-                st.caption(f"• {name}")
-            if st.button("Resume with existing documents", use_container_width=True):
-                if not groq_api_key:
-                    st.error("Please enter your Groq API Key.")
-                else:
-                    with st.spinner("Reconnecting to existing index..."):
-                        try:
-                            dense = _load_dense_embeddings()
-                            sparse = _load_sparse_embeddings()
-                            reranker = _load_reranker_model()
-                            vectorstore = connect_existing_vectorstore(dense, sparse)
-                            retriever = build_retriever(vectorstore, reranker)
-                            groq_llm = ChatGroq(
-                                groq_api_key=groq_api_key,
-                                model_name=config.GROQ_MODEL,
-                            )
-                            st.session_state.rag_chain = create_rag_chain(groq_llm, retriever)
-                            st.session_state.groq_api_key = groq_api_key
-                            st.session_state.documents_processed = True
-                            st.session_state.messages = [
-                                {
-                                    "role": "ai",
-                                    "content": "Reconnected to existing documents. Ask me anything!",
-                                    "sources": [],
-                                    "is_welcome": True,
-                                }
-                            ]
-                            st.session_state.last_ragas_scores = None
-                            st.rerun()
-                        except Exception as exc:
-                            st.error(f"Reconnection failed: {exc}")
-            st.markdown("---")
+
+        # Auto-connect to the persistent index on load so a served corpus is
+        # queryable without any upload. Runs once per session when documents are
+        # already indexed and a key is available (env or entered above).
+        if (
+            not st.session_state.documents_processed
+            and not st.session_state.auto_connect_attempted
+            and existing_sources
+            and groq_api_key
+        ):
+            st.session_state.auto_connect_attempted = True
+            with st.spinner("Connecting to indexed documents..."):
+                error = _init_rag_chain(groq_api_key)
+            if error:
+                st.error(error)
+            else:
+                st.rerun()
 
         if st.button("Process Documents and Start Chat", use_container_width=True):
             if not groq_api_key:
@@ -495,36 +513,25 @@ def main() -> None:
             else:
                 with st.spinner("Processing documents (embedding + indexing)..."):
                     try:
-                        dense = _load_dense_embeddings()
-                        sparse = _load_sparse_embeddings()
-                        reranker = _load_reranker_model()
-                        chunks = load_and_split_documents(uploaded_files)
-
-                        if not chunks:
-                            st.error("No supported documents were loaded.")
+                        error = _init_rag_chain(groq_api_key, uploaded_files=uploaded_files)
+                        if error:
+                            st.error(error)
                         else:
-                            vectorstore = create_vectorstore(chunks, dense, sparse)
-                            retriever = build_retriever(vectorstore, reranker)
-                            groq_llm = ChatGroq(
-                                groq_api_key=groq_api_key,
-                                model_name=config.GROQ_MODEL,
-                            )
-                            st.session_state.rag_chain = create_rag_chain(groq_llm, retriever)
-                            st.session_state.groq_api_key = groq_api_key
-                            st.session_state.documents_processed = True
-                            st.session_state.messages = [
-                                {
-                                    "role": "ai",
-                                    "content": "Documents processed. Ask me anything about them!",
-                                    "sources": [],
-                                    "is_welcome": True,
-                                }
-                            ]
-                            st.session_state.last_ragas_scores = None
-                            st.success(f"Indexed {len(chunks)} chunks.")
                             st.rerun()
                     except Exception as exc:
                         st.error(f"Processing failed: {exc}")
+
+        if existing_sources and not st.session_state.documents_processed:
+            if st.button("Resume with existing documents", use_container_width=True):
+                if not groq_api_key:
+                    st.error("Please enter your Groq API Key.")
+                else:
+                    with st.spinner("Reconnecting to existing index..."):
+                        error = _init_rag_chain(groq_api_key)
+                    if error:
+                        st.error(error)
+                    else:
+                        st.rerun()
 
         if st.session_state.last_ragas_scores:
             st.markdown("---")
@@ -536,9 +543,12 @@ def main() -> None:
                 st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
 
         st.markdown("---")
+        st.subheader("Indexed Documents")
         if existing_sources:
-            st.subheader("In Database")
-            st.caption("Available from previous sessions — no need to re-upload.")
+            st.caption(
+                f"{len(existing_sources)} document(s) in the database — "
+                "available from previous sessions, no need to re-upload."
+            )
             for name in existing_sources:
                 st.markdown(f"📄 {name}")
         else:
@@ -546,8 +556,9 @@ def main() -> None:
 
     if not st.session_state.documents_processed:
         st.info(
-            "Start Qdrant (`docker compose up -d`), upload documents, enter your Groq API key, "
-            "then click **Process Documents and Start Chat**."
+            "Start Qdrant (`docker compose up -d`), then either upload documents and click "
+            "**Process Documents and Start Chat**, or wait for auto-connect if documents are "
+            "already indexed."
         )
         st.stop()
 

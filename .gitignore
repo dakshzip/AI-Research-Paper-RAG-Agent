@@ -14,3 +14,8 @@ dist/
 build/
 .DS_Store
 qdrant_data/
+
+# Corpus documents (dropped in for the seed script) — index, don't version
+data/corpus/*
+!data/corpus/.gitkeep
+AI Research Papers/

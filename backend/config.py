@@ -14,6 +14,12 @@ QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
 
 # Groq LLM
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+# Optional: supply the key via .env so a deployment can auto-connect without the
+# user pasting it into the sidebar each session.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+# Curated corpus folder for the admin seed script (scripts/seed_corpus.py).
+CORPUS_DIR = Path(os.getenv("CORPUS_DIR", str(PROJECT_ROOT / "data" / "corpus")))
 
 # RAGAS judge — needs a stronger model than the chat LLM to emit reliable structured
 # scores; the small instant model frequently returns unparseable judgments (NaN).

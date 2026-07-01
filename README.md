@@ -7,6 +7,8 @@ A document Q&A chatbot powered by **Retrieval-Augmented Generation (RAG)**. Uplo
 | Feature | Description |
 |---------|-------------|
 | **Qdrant vector store** | Persistent hybrid-indexed storage via Docker (replaces in-memory FAISS) |
+| **Persistent corpus + auto-connect** | Indexed documents survive restarts; the app auto-connects on load so a curated corpus is queryable without re-uploading |
+| **Admin seed script** | `scripts/seed_corpus.py` bulk-indexes a folder of papers additively (idempotent, skips already-indexed files) |
 | **BGE-large embeddings** | Dense semantic vectors (`BAAI/bge-large-en-v1.5`) |
 | **Hybrid search** | Combines dense (BGE) + sparse (BM25) retrieval in Qdrant |
 | **Reranking** | Cross-encoder reranker (`BAAI/bge-reranker-v2-m3`) refines top results |
@@ -43,13 +45,17 @@ SCA-using-RAG/
 ├── .env.example
 ├── prompts/
 │   └── rag_system.txt        # System + contextualize prompts
+├── data/
+│   └── corpus/               # Drop PDFs/TXTs here for the seed script
+├── scripts/
+│   └── seed_corpus.py        # Admin: bulk-index data/corpus into Qdrant
 ├── frontend/
 │   └── app.py                # Streamlit UI
 └── backend/
     ├── config.py             # Models, retrieval knobs, env vars
     ├── embeddings.py         # BGE-large + FastEmbed sparse
     ├── ingestion.py          # Document loading and chunking
-    ├── vectorstore.py        # Qdrant hybrid indexing
+    ├── vectorstore.py        # Qdrant hybrid indexing (additive upsert)
     ├── retrieval.py          # Hybrid retriever + reranker
     ├── rag_chain.py          # History-aware RAG chain
     └── evaluation/
@@ -94,17 +100,33 @@ SCA-using-RAG/
 
    Qdrant dashboard: http://localhost:6333/dashboard
 
-5. **Run the app**
+5. **(Optional) Seed a curated corpus**
+
+   Drop PDF/TXT files into `data/corpus/`, then index them once:
+
+   ```bash
+   python -m scripts.seed_corpus            # index new files in data/corpus
+   python -m scripts.seed_corpus --dir path/to/papers
+   python -m scripts.seed_corpus --force    # re-index even if already present
+   ```
+
+   Seeding is additive and idempotent: already-indexed files are skipped, and
+   re-running never duplicates content. The app will auto-connect to whatever is
+   indexed, so users can query the corpus without uploading anything.
+
+6. **Run the app**
 
    ```bash
    streamlit run frontend/app.py
    ```
 
-6. **Use the app**
+7. **Use the app**
 
    - Enter your Groq API key in the sidebar (or set `GROQ_API_KEY` in `.env`)
-   - Upload PDF/TXT files
-   - Click **Process Documents and Start Chat**
+   - If documents are already indexed (e.g. via the seed script), the app
+     **auto-connects** on load — just start asking questions
+   - To add more documents: upload PDF/TXT files and click **Process Documents
+     and Start Chat**. New documents are added alongside the existing ones
    - Ask questions; expand **Sources** under each answer
    - Optionally enable **RAGAS evaluation** for quality scores
 
@@ -143,7 +165,7 @@ Tune chunking and models in `backend/config.py`.
 
 - First run downloads embedding and reranker models (several GB total).
 - Embedding and reranking on CPU can be slow for large documents.
-- Re-processing documents recreates the Qdrant collection (previous index is replaced).
+- Processing documents adds to the Qdrant collection (previous index is preserved). To rebuild from scratch, drop the collection via the Qdrant dashboard or `reset_collection()`.
 - RAGAS adds ~3–8 seconds per query when enabled.
 
 ## Tech Stack
