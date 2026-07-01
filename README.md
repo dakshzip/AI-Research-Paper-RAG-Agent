@@ -1,17 +1,20 @@
-# SSA using RAG
+# AI Research Paper RAG Agent
 
-A document Q&A chatbot powered by **Retrieval-Augmented Generation (RAG)**. Upload PDF or TXT files, ask questions, and get answers grounded in your documents—with source citations, conversational follow-ups, and optional quality scoring.
+A **Retrieval-Augmented Generation (RAG)** agent for querying AI/ML research papers. Ships with a curated corpus of landmark papers (Transformers, BERT, GPT-3, ResNet, GANs, diffusion, CLIP, RL, and more) and answers questions with grounded, paper-attributed explanations — including side-by-side **comparison tables** when several papers are relevant. Drop in your own PDFs to extend it.
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
+| **Curated paper corpus** | Ships queryable out of the box; seed a folder of landmark AI papers once and query them forever |
+| **Domain-tuned answers** | Prompt specialized for research papers: attributes claims to the source paper, explains concepts in depth, and **tabulates differences** across papers |
+| **Rich Markdown rendering** | Answers render real tables, headings, lists, and code in the chat UI |
 | **Qdrant vector store** | Persistent hybrid-indexed storage via Docker (replaces in-memory FAISS) |
-| **Persistent corpus + auto-connect** | Indexed documents survive restarts; the app auto-connects on load so a curated corpus is queryable without re-uploading |
+| **Persistent corpus + auto-connect** | Indexed documents survive restarts; the app auto-connects on load so the corpus is queryable without re-uploading |
 | **Admin seed script** | `scripts/seed_corpus.py` bulk-indexes a folder of papers additively (idempotent, skips already-indexed files) |
-| **BGE-large embeddings** | Dense semantic vectors (`BAAI/bge-large-en-v1.5`) |
+| **BGE embeddings** | Dense semantic vectors (`BAAI/bge-small-en-v1.5`) |
 | **Hybrid search** | Combines dense (BGE) + sparse (BM25) retrieval in Qdrant |
-| **Reranking** | Cross-encoder reranker (`BAAI/bge-reranker-v2-m3`) refines top results |
+| **Reranking** | Cross-encoder reranker (`BAAI/bge-reranker-base`) refines top results |
 | **Source citations** | Expandable source panel with filename, page, and snippet |
 | **Conversation history** | History-aware query rewriting for follow-up questions |
 | **RAGAS evaluation** | Optional faithfulness and answer-relevancy scores (sidebar toggle) |
@@ -20,15 +23,16 @@ A document Q&A chatbot powered by **Retrieval-Augmented Generation (RAG)**. Uplo
 
 ```mermaid
 flowchart TD
-    upload[User uploads PDF/TXT] --> ingest[Ingestion: split + metadata]
-    ingest --> embed[Dense BGE-large + sparse BM25 vectors]
-    embed --> qdrant[(Qdrant Docker)]
+    seed[Seed script indexes paper corpus] --> ingest[Ingestion: split + metadata]
+    upload[User uploads more PDFs/TXT] --> ingest
+    ingest --> embed[Dense BGE + sparse BM25 vectors]
+    embed --> qdrant[(Qdrant Docker - persistent)]
     question[User question + chat history] --> contextualize[History-aware query rewrite]
     contextualize --> hybrid[Hybrid search dense+sparse]
     hybrid --> qdrant
     qdrant --> rerank[BGE reranker top-k]
     rerank --> llm[Groq Llama 3.1 answer]
-    llm --> citations[UI: answer + source expander]
+    llm --> citations[UI: Markdown answer + comparison tables + source expander]
     llm --> ragasOpt{RAGAS toggle on?}
     ragasOpt -->|yes| ragas[RAGAS scores in sidebar]
     ragasOpt -->|no| done[Done]
@@ -53,7 +57,7 @@ SCA-using-RAG/
 │   └── app.py                # Streamlit UI
 └── backend/
     ├── config.py             # Models, retrieval knobs, env vars
-    ├── embeddings.py         # BGE-large + FastEmbed sparse
+    ├── embeddings.py         # BGE dense + FastEmbed sparse
     ├── ingestion.py          # Document loading and chunking
     ├── vectorstore.py        # Qdrant hybrid indexing (additive upsert)
     ├── retrieval.py          # Hybrid retriever + reranker
@@ -74,7 +78,7 @@ SCA-using-RAG/
 
    ```bash
    git clone <your-repo-url>
-   cd "SCA using RAG"
+   cd AI-Research-Paper-RAG-Agent
    ```
 
 2. **Create a virtual environment and install dependencies**
@@ -100,19 +104,24 @@ SCA-using-RAG/
 
    Qdrant dashboard: http://localhost:6333/dashboard
 
-5. **(Optional) Seed a curated corpus**
+5. **Seed the paper corpus**
 
-   Drop PDF/TXT files into `data/corpus/`, then index them once:
+   Drop PDF/TXT files into `data/corpus/` (or point `--dir` at any folder), then
+   index them once:
 
    ```bash
-   python -m scripts.seed_corpus            # index new files in data/corpus
-   python -m scripts.seed_corpus --dir path/to/papers
-   python -m scripts.seed_corpus --force    # re-index even if already present
+   python -m scripts.seed_corpus                      # index new files in data/corpus
+   python -m scripts.seed_corpus --dir path/to/papers # index another folder
+   python -m scripts.seed_corpus --force              # re-index even if already present
    ```
 
    Seeding is additive and idempotent: already-indexed files are skipped, and
-   re-running never duplicates content. The app will auto-connect to whatever is
-   indexed, so users can query the corpus without uploading anything.
+   re-running never duplicates content. The app auto-connects to whatever is
+   indexed, so you can query the corpus without uploading anything.
+
+   > **Bulk seeding tip:** embedding many papers at once can exhaust GPU (Apple
+   > MPS) memory. For large batches, force CPU embedding:
+   > `EMBEDDING_DEVICE=cpu python -m scripts.seed_corpus`.
 
 6. **Run the app**
 
@@ -140,8 +149,10 @@ Environment variables (see `.env.example`):
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant server URL |
 | `QDRANT_COLLECTION` | `rag_documents` | Collection name |
 | `GROQ_MODEL` | `llama-3.1-8b-instant` | Groq model ID |
-| `RETRIEVE_K` | `20` | Chunks retrieved before reranking |
+| `RETRIEVE_K` | `8` | Chunks retrieved before reranking |
 | `FINAL_K` | `5` | Chunks sent to LLM after reranking |
+| `CORPUS_DIR` | `data/corpus` | Folder the seed script indexes by default |
+| `EMBEDDING_DEVICE` | auto (MPS/CUDA/CPU) | Override embedding device (e.g. `cpu`) |
 
 Tune chunking and models in `backend/config.py`.
 
@@ -149,11 +160,13 @@ Tune chunking and models in `backend/config.py`.
 
 **Qdrant (vs FAISS)** — Vectors persist in Docker; collections support named dense and sparse vectors for hybrid search.
 
-**BGE-large** — Stronger semantic embeddings than BGE-small; ~1.3 GB download on first run (CPU).
+**BGE embeddings** — `BAAI/bge-small-en-v1.5` dense (384-dim) semantic vectors; small and fast, downloaded on first run.
 
 **Hybrid search** — Dense vectors capture meaning; BM25 sparse vectors match keywords. Qdrant fuses both via reciprocal rank fusion (RRF).
 
-**Reranking** — Retrieves 20 candidates, then the BGE cross-encoder reranker picks the top 5 most relevant chunks for the LLM.
+**Reranking** — Retrieves `RETRIEVE_K` (8) candidates, then the `BAAI/bge-reranker-base` cross-encoder picks the top `FINAL_K` (5) most relevant chunks for the LLM.
+
+**Domain prompt + Markdown answers** — The system prompt (`prompts/rag_system.txt`) tailors answers to research papers: it attributes claims to the source paper, explains concepts in depth, and produces comparison tables when multiple papers are relevant. The chat UI renders that Markdown (tables, headings, lists, code).
 
 **Source citations** — Each chunk stores filename, page, and preview text; the UI shows deduplicated sources per answer.
 
@@ -163,9 +176,10 @@ Tune chunking and models in `backend/config.py`.
 
 ## Limitations
 
-- First run downloads embedding and reranker models (several GB total).
-- Embedding and reranking on CPU can be slow for large documents.
+- First run downloads embedding and reranker models.
+- Embedding and reranking on CPU can be slow for large documents; bulk seeding on Apple MPS can hit GPU memory limits (use `EMBEDDING_DEVICE=cpu`).
 - Processing documents adds to the Qdrant collection (previous index is preserved). To rebuild from scratch, drop the collection via the Qdrant dashboard or `reset_collection()`.
+- Chat history is not truncated, so very long sessions can approach the model's context limit (handled gracefully with a friendly error).
 - RAGAS adds ~3–8 seconds per query when enabled.
 
 ## Tech Stack
@@ -173,8 +187,8 @@ Tune chunking and models in `backend/config.py`.
 - **UI:** Streamlit
 - **LLM:** Groq (Llama 3.1)
 - **Vector DB:** Qdrant
-- **Embeddings:** BGE-large (dense), FastEmbed BM25 (sparse)
-- **Reranker:** BGE-reranker-v2-m3
+- **Embeddings:** BGE-small-en-v1.5 (dense), FastEmbed BM25 (sparse)
+- **Reranker:** BGE-reranker-base
 - **Framework:** LangChain
 - **Evaluation:** RAGAS
 

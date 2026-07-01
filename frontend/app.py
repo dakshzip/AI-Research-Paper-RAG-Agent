@@ -2,6 +2,7 @@ import html
 import sys
 from pathlib import Path
 
+import markdown as md
 import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
@@ -35,6 +36,16 @@ NOT_IN_DOCS_MARKER = "This cannot be answered from the information provided in y
 def _answer_grounded_in_docs(answer: str) -> bool:
     """False when the model declared the answer is not supported by the documents."""
     return NOT_IN_DOCS_MARKER.lower() not in answer.lower()
+
+
+# Assistant answers use Markdown (comparison tables, headings, lists, code). Render it to
+# HTML so it displays inside the styled chat bubble instead of as raw text.
+_MD_EXTENSIONS = ["tables", "fenced_code", "sane_lists", "nl2br"]
+
+
+def _ai_html(text: str) -> str:
+    """Convert an assistant Markdown answer to HTML for the chat bubble."""
+    return md.markdown(text, extensions=_MD_EXTENSIONS)
 
 
 def _format_sources(documents: list[Document]) -> list[dict]:
@@ -380,6 +391,44 @@ def main() -> None:
                 color: inherit;
             }
 
+            /* Markdown rendered inside assistant bubbles */
+            .chat-message-ai p { margin: 0 0 .6rem; }
+            .chat-message-ai p:last-child { margin-bottom: 0; }
+            .chat-message-ai h1, .chat-message-ai h2, .chat-message-ai h3 {
+                margin: .6rem 0 .4rem;
+                font-size: 1.02rem;
+                color: var(--blue-dark);
+            }
+            .chat-message-ai ul, .chat-message-ai ol { margin: .2rem 0 .6rem 1.2rem; }
+            .chat-message-ai li { margin: .15rem 0; }
+            .chat-message-ai code {
+                padding: .08rem .3rem;
+                border-radius: 6px;
+                font-size: .88em;
+                background: rgba(21, 94, 239, .1);
+            }
+            .chat-message-ai pre {
+                padding: .7rem .9rem;
+                border-radius: 10px;
+                overflow-x: auto;
+                background: #0d2255;
+            }
+            .chat-message-ai pre code { background: transparent; color: #eef4ff; }
+            .chat-message-ai table {
+                width: 100%;
+                margin: .5rem 0;
+                border-collapse: collapse;
+                font-size: .92rem;
+            }
+            .chat-message-ai th, .chat-message-ai td {
+                padding: .4rem .6rem;
+                border: 1px solid #e2b7c4;
+                text-align: left;
+                vertical-align: top;
+            }
+            .chat-message-ai th { background: rgba(225, 29, 72, .1); font-weight: 700; }
+            .chat-message-ai tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .5); }
+
             [data-testid="stChatInput"] {
                 border: 1px solid #aebddd;
                 border-radius: 16px;
@@ -574,7 +623,7 @@ def main() -> None:
                 )
             elif msg["role"] == "ai":
                 st.markdown(
-                    f'<div class="chat-message-ai"><strong>Assistant</strong>{html.escape(msg["content"])}</div>',
+                    f'<div class="chat-message-ai"><strong>Assistant</strong>{_ai_html(msg["content"])}</div>',
                     unsafe_allow_html=True,
                 )
                 if msg.get("sources"):
@@ -624,7 +673,7 @@ def main() -> None:
                         answer_parts.append(chunk["answer"])
                         stream_placeholder.markdown(
                             f'<div class="chat-message-ai"><strong>Assistant</strong>'
-                            f'{html.escape("".join(answer_parts))}</div>',
+                            f'{_ai_html("".join(answer_parts))}</div>',
                             unsafe_allow_html=True,
                         )
 
