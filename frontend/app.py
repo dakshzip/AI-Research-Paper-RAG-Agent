@@ -24,9 +24,13 @@ from backend.retrieval import build_retriever, get_reranker_model  # noqa: E402
 from backend.vectorstore import (  # noqa: E402
     check_qdrant_connection,
     connect_existing_vectorstore,
+    ensure_source_payload_index,
     get_indexed_sources,
     upsert_documents,
 )
+
+# Sidebar "Focus" option that keeps the whole corpus searchable (no source filter).
+ALL_PAPERS = "All papers"
 
 
 # Marker the model emits when the documents don't answer the question (see prompts/rag_system.txt).
@@ -126,6 +130,21 @@ def _load_reranker_model():
     return get_reranker_model()
 
 
+def _build_chain(source_filter: str | None) -> None:
+    """(Re)build the retriever + RAG chain from cached components in session state.
+
+    Cheap enough to call on every focus change: the vectorstore, reranker, and LLM
+    are already warm, so only the retriever wiring and prompt chain are rebuilt.
+    Does not touch chat history, so switching focus mid-conversation is seamless.
+    """
+    retriever = build_retriever(
+        st.session_state.vectorstore,
+        st.session_state.reranker,
+        source_filter=source_filter,
+    )
+    st.session_state.rag_chain = create_rag_chain(st.session_state.groq_llm, retriever)
+
+
 def _init_rag_chain(groq_api_key: str, uploaded_files=None) -> str | None:
     """Build the RAG chain and store it in session state.
 
@@ -147,10 +166,19 @@ def _init_rag_chain(groq_api_key: str, uploaded_files=None) -> str | None:
         vectorstore = connect_existing_vectorstore(dense, sparse)
         welcome = "Connected to indexed documents. Ask me anything!"
 
-    retriever = build_retriever(vectorstore, reranker)
-    groq_llm = ChatGroq(groq_api_key=groq_api_key, model_name=config.GROQ_MODEL)
+    # Enable efficient single-paper filtering for the Focus dropdown.
+    ensure_source_payload_index()
 
-    st.session_state.rag_chain = create_rag_chain(groq_llm, retriever)
+    st.session_state.vectorstore = vectorstore
+    st.session_state.reranker = reranker
+    st.session_state.groq_llm = ChatGroq(
+        groq_api_key=groq_api_key,
+        model_name=config.GROQ_MODEL,
+        reasoning_effort="none",  # disable Qwen3 thinking mode (Groq API)
+    )
+    st.session_state.focus_label = ALL_PAPERS
+    _build_chain(source_filter=None)
+
     st.session_state.groq_api_key = groq_api_key
     st.session_state.documents_processed = True
     st.session_state.messages = [
@@ -167,23 +195,26 @@ def main() -> None:
         """
         <style>
             :root {
-                --ink: #101b3d;
-                --muted: #53617e;
-                --blue: #155eef;
-                --blue-dark: #0b2f88;
-                --red: #e11d48;
-                --surface: #ffffff;
-                --surface-soft: #f4f7ff;
-                --line: #d7def0;
+                --ink: #e8edfb;
+                --muted: #93a1c4;
+                --blue: #3b82f6;
+                --blue-bright: #60a5fa;
+                --red: #f43f5e;
+                --red-bright: #fb7185;
+                --bg: #070b18;
+                --surface: #0e1530;
+                --surface-soft: #131c3d;
+                --line: #24305c;
             }
 
             .stApp {
                 color: var(--ink);
-                color-scheme: light;
+                color-scheme: dark;
                 background:
-                    radial-gradient(circle at 8% 4%, rgba(225, 29, 72, .14), transparent 26rem),
-                    radial-gradient(circle at 95% 8%, rgba(21, 94, 239, .18), transparent 30rem),
-                    linear-gradient(145deg, #fff8fa 0%, #f7f9ff 45%, #eef4ff 100%);
+                    radial-gradient(circle at 8% 4%, rgba(244, 63, 94, .16), transparent 28rem),
+                    radial-gradient(circle at 95% 8%, rgba(59, 130, 246, .2), transparent 32rem),
+                    radial-gradient(circle at 50% 110%, rgba(76, 29, 149, .25), transparent 40rem),
+                    linear-gradient(145deg, #0a0714 0%, #070b18 45%, #060d20 100%);
             }
 
             [data-testid="stHeader"] { background: transparent; }
@@ -196,7 +227,7 @@ def main() -> None:
 
             [data-testid="stAppViewContainer"] > .main {
                 overflow-y: scroll !important;
-                scrollbar-color: var(--blue) #e5eaf5;
+                scrollbar-color: var(--blue) #131c3d;
                 scrollbar-width: auto;
             }
 
@@ -207,12 +238,12 @@ def main() -> None:
 
             [data-testid="stAppViewContainer"] > .main::-webkit-scrollbar-track,
             [data-testid="stVerticalBlockBorderWrapper"] ::-webkit-scrollbar-track {
-                background: #e5eaf5;
+                background: #131c3d;
             }
 
             [data-testid="stAppViewContainer"] > .main::-webkit-scrollbar-thumb,
             [data-testid="stVerticalBlockBorderWrapper"] ::-webkit-scrollbar-thumb {
-                border: 3px solid #e5eaf5;
+                border: 3px solid #131c3d;
                 border-radius: 999px;
                 background: linear-gradient(180deg, var(--red), var(--blue));
             }
@@ -228,11 +259,16 @@ def main() -> None:
                 overflow: hidden;
                 margin-bottom: 1.5rem;
                 padding: 2.25rem 2.4rem;
-                border: 1px solid rgba(255, 255, 255, .7);
+                border: 1px solid rgba(96, 165, 250, .35);
                 border-radius: 24px;
                 color: #ffffff;
-                background: linear-gradient(120deg, #9f1239 0%, #e11d48 30%, #4438ca 67%, #0b4cc7 100%);
-                box-shadow: 0 20px 50px rgba(27, 45, 105, .22);
+                background:
+                    radial-gradient(circle at 85% 20%, rgba(96, 165, 250, .35), transparent 22rem),
+                    linear-gradient(120deg, #4c0519 0%, #9f1239 28%, #312e81 65%, #172554 100%);
+                box-shadow:
+                    0 0 0 1px rgba(255, 255, 255, .04),
+                    0 24px 60px rgba(2, 6, 23, .8),
+                    0 0 80px rgba(244, 63, 94, .12);
             }
 
             .hero::after {
@@ -242,7 +278,7 @@ def main() -> None:
                 height: 230px;
                 right: -70px;
                 top: -110px;
-                border: 38px solid rgba(255, 255, 255, .13);
+                border: 38px solid rgba(255, 255, 255, .08);
                 border-radius: 50%;
             }
 
@@ -252,7 +288,10 @@ def main() -> None:
                 font-weight: 800;
                 letter-spacing: .14em;
                 text-transform: uppercase;
-                color: #ffffff;
+                background: linear-gradient(90deg, var(--red-bright), var(--blue-bright));
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
             }
 
             .hero h1 {
@@ -261,6 +300,7 @@ def main() -> None:
                 line-height: 1.05;
                 letter-spacing: -.04em;
                 color: #ffffff !important;
+                text-shadow: 0 0 40px rgba(96, 165, 250, .35);
             }
 
             .hero p {
@@ -268,36 +308,37 @@ def main() -> None:
                 margin: 0;
                 font-size: 1.02rem;
                 line-height: 1.65;
-                color: #f8faff !important;
+                color: #cbd7f5 !important;
             }
 
             [data-testid="stSidebar"] {
-                border-right: 1px solid #253d82;
-                background: linear-gradient(180deg, #07132f 0%, #0d2255 55%, #40112a 100%);
+                border-right: 1px solid #1e2a55;
+                background: linear-gradient(180deg, #05091a 0%, #0a1233 55%, #26081a 100%);
             }
 
-            [data-testid="stSidebar"] * { color: #f8faff !important; }
-            [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color: #d5def5; }
-            [data-testid="stSidebar"] hr { border-color: rgba(255, 255, 255, .18); }
+            [data-testid="stSidebar"] * { color: #e8edfb !important; }
+            [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color: #93a1c4; }
+            [data-testid="stSidebar"] hr { border-color: rgba(148, 163, 216, .18); }
 
             [data-testid="stSidebar"] input,
             [data-testid="stSidebar"] textarea {
-                color: #101b3d !important;
-                background: #ffffff !important;
-                -webkit-text-fill-color: #101b3d !important;
+                color: #e8edfb !important;
+                background: #0e1530 !important;
+                border: 1px solid #2c3a6e !important;
+                -webkit-text-fill-color: #e8edfb !important;
             }
 
             [data-testid="stSidebar"] input::placeholder,
             [data-testid="stSidebar"] textarea::placeholder {
-                color: #697590 !important;
-                -webkit-text-fill-color: #697590 !important;
+                color: #6c7a9e !important;
+                -webkit-text-fill-color: #6c7a9e !important;
             }
 
             [data-testid="stSidebar"] [data-baseweb="select"] > div,
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
                 color: var(--ink);
-                border-color: #9eadd2;
-                background: rgba(255, 255, 255, .96);
+                border-color: #2c3a6e;
+                background: rgba(14, 21, 48, .92);
             }
 
             [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] * {
@@ -318,8 +359,8 @@ def main() -> None:
                 border-radius: 12px;
                 font-weight: 750;
                 color: #ffffff !important;
-                background: linear-gradient(105deg, #e11d48, #155eef);
-                box-shadow: 0 8px 20px rgba(21, 94, 239, .22);
+                background: linear-gradient(105deg, #e11d48, #2563eb);
+                box-shadow: 0 8px 24px rgba(37, 99, 235, .35), 0 0 32px rgba(225, 29, 72, .18);
                 transition: transform .16s ease, box-shadow .16s ease;
             }
 
@@ -327,7 +368,7 @@ def main() -> None:
             [data-testid="stFormSubmitButton"] > button:hover {
                 color: #ffffff !important;
                 transform: translateY(-1px);
-                box-shadow: 0 11px 24px rgba(21, 94, 239, .3);
+                box-shadow: 0 11px 30px rgba(37, 99, 235, .5), 0 0 40px rgba(225, 29, 72, .28);
             }
 
             .stButton > button *,
@@ -336,49 +377,49 @@ def main() -> None:
             }
 
             .stButton > button:focus {
-                outline: 3px solid rgba(255, 255, 255, .7);
+                outline: 3px solid rgba(96, 165, 250, .6);
                 outline-offset: 2px;
             }
 
             [data-testid="stAlert"] {
-                border: 1px solid #b8c6e6;
+                border: 1px solid #2c3a6e;
                 border-left: 5px solid var(--blue);
                 border-radius: 14px;
-                background: rgba(255, 255, 255, .94);
-                box-shadow: 0 8px 24px rgba(16, 27, 61, .08);
+                background: rgba(14, 21, 48, .92);
+                box-shadow: 0 8px 24px rgba(2, 6, 23, .5);
             }
 
             [data-testid="stAlert"] * { color: var(--ink) !important; }
 
             [data-testid="stVerticalBlockBorderWrapper"] {
-                border-color: #c5cfe6 !important;
+                border-color: #24305c !important;
                 border-radius: 20px !important;
-                background: rgba(255, 255, 255, .72);
-                box-shadow: 0 16px 42px rgba(29, 48, 99, .1);
+                background: rgba(14, 21, 48, .6);
+                box-shadow: 0 16px 42px rgba(2, 6, 23, .55);
             }
 
             .chat-message-user {
                 max-width: 82%;
                 margin: .8rem 0 .8rem auto;
                 padding: .95rem 1.1rem;
-                border: 1px solid #8fb2ff;
+                border: 1px solid rgba(96, 165, 250, .45);
                 border-radius: 18px 18px 5px 18px;
                 color: #ffffff;
                 line-height: 1.55;
-                background: linear-gradient(135deg, #0d47b8, #155eef);
-                box-shadow: 0 8px 20px rgba(21, 94, 239, .18);
+                background: linear-gradient(135deg, #1e3a8a, #2563eb);
+                box-shadow: 0 8px 24px rgba(37, 99, 235, .3);
             }
 
             .chat-message-ai {
                 max-width: 86%;
                 margin: .8rem auto .8rem 0;
                 padding: .95rem 1.1rem;
-                border: 1px solid #f2a9bb;
+                border: 1px solid rgba(244, 63, 94, .35);
                 border-radius: 18px 18px 18px 5px;
-                color: #31101a;
+                color: var(--ink);
                 line-height: 1.55;
-                background: linear-gradient(135deg, #ffffff, #fff1f4);
-                box-shadow: 0 8px 20px rgba(159, 18, 57, .1);
+                background: linear-gradient(135deg, #131c3d, #251129);
+                box-shadow: 0 8px 24px rgba(159, 18, 57, .22);
             }
 
             .chat-message-user strong,
@@ -397,7 +438,7 @@ def main() -> None:
             .chat-message-ai h1, .chat-message-ai h2, .chat-message-ai h3 {
                 margin: .6rem 0 .4rem;
                 font-size: 1.02rem;
-                color: var(--blue-dark);
+                color: var(--blue-bright);
             }
             .chat-message-ai ul, .chat-message-ai ol { margin: .2rem 0 .6rem 1.2rem; }
             .chat-message-ai li { margin: .15rem 0; }
@@ -405,15 +446,17 @@ def main() -> None:
                 padding: .08rem .3rem;
                 border-radius: 6px;
                 font-size: .88em;
-                background: rgba(21, 94, 239, .1);
+                color: #93c5fd;
+                background: rgba(59, 130, 246, .16);
             }
             .chat-message-ai pre {
                 padding: .7rem .9rem;
                 border-radius: 10px;
                 overflow-x: auto;
-                background: #0d2255;
+                border: 1px solid #24305c;
+                background: #060a16;
             }
-            .chat-message-ai pre code { background: transparent; color: #eef4ff; }
+            .chat-message-ai pre code { background: transparent; color: #dbe6ff; }
             .chat-message-ai table {
                 width: 100%;
                 margin: .5rem 0;
@@ -422,41 +465,46 @@ def main() -> None:
             }
             .chat-message-ai th, .chat-message-ai td {
                 padding: .4rem .6rem;
-                border: 1px solid #e2b7c4;
+                border: 1px solid #3a2144;
                 text-align: left;
                 vertical-align: top;
             }
-            .chat-message-ai th { background: rgba(225, 29, 72, .1); font-weight: 700; }
-            .chat-message-ai tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .5); }
+            .chat-message-ai th { background: rgba(244, 63, 94, .14); font-weight: 700; }
+            .chat-message-ai tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .03); }
 
             [data-testid="stChatInput"] {
-                border: 1px solid #aebddd;
+                border: 1px solid #2c3a6e;
                 border-radius: 16px;
                 color: var(--ink) !important;
-                background: #ffffff !important;
-                box-shadow: 0 10px 28px rgba(25, 45, 96, .12);
+                background: #0e1530 !important;
+                box-shadow: 0 10px 28px rgba(2, 6, 23, .6), 0 0 24px rgba(59, 130, 246, .1);
                 overflow: hidden;
+            }
+
+            [data-testid="stChatInput"]:focus-within {
+                border-color: var(--blue);
+                box-shadow: 0 10px 28px rgba(2, 6, 23, .6), 0 0 32px rgba(59, 130, 246, .25);
             }
 
             [data-testid="stChatInput"] > div,
             [data-testid="stChatInput"] textarea,
             [data-testid="stChatInputTextArea"] {
                 color: var(--ink) !important;
-                caret-color: var(--blue) !important;
-                background: #ffffff !important;
+                caret-color: var(--blue-bright) !important;
+                background: #0e1530 !important;
                 -webkit-text-fill-color: var(--ink) !important;
             }
 
             [data-testid="stChatInput"] textarea::placeholder,
             [data-testid="stChatInputTextArea"]::placeholder {
-                color: #66728d !important;
+                color: #6c7a9e !important;
                 opacity: 1;
-                -webkit-text-fill-color: #66728d !important;
+                -webkit-text-fill-color: #6c7a9e !important;
             }
 
             [data-testid="stChatInputSubmitButton"] {
-                color: var(--blue) !important;
-                background: #ffffff !important;
+                color: var(--blue-bright) !important;
+                background: #0e1530 !important;
             }
 
             [data-testid="stBottom"],
@@ -466,9 +514,9 @@ def main() -> None:
             }
 
             [data-testid="stExpander"] {
-                border-color: #c5cfe6;
+                border-color: #24305c;
                 border-radius: 12px;
-                background: rgba(255, 255, 255, .85);
+                background: rgba(14, 21, 48, .8);
             }
 
             @media (max-width: 700px) {
@@ -590,6 +638,28 @@ def main() -> None:
                 st.warning(scores["error"])
             elif scores.get("answer_relevancy") is not None:
                 st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
+
+        if st.session_state.documents_processed and existing_sources:
+            st.markdown("---")
+            st.subheader("Focus")
+            options = [ALL_PAPERS] + existing_sources
+            current = st.session_state.get("focus_label", ALL_PAPERS)
+            if current not in options:
+                current = ALL_PAPERS
+            choice = st.selectbox(
+                "Scope answers to one paper",
+                options,
+                index=options.index(current),
+                help=(
+                    "Restrict retrieval to a single paper for sharper answers during a "
+                    "multi-question session. Leave on 'All papers' to search everything "
+                    "(same behavior and speed as before)."
+                ),
+            )
+            if choice != current:
+                st.session_state.focus_label = choice
+                _build_chain(source_filter=None if choice == ALL_PAPERS else choice)
+                st.rerun()
 
         st.markdown("---")
         st.subheader("Indexed Documents")
