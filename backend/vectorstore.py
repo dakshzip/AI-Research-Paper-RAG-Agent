@@ -3,7 +3,7 @@ from typing import List
 
 from langchain_core.documents import Document
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models
 
 from backend import config
 
@@ -12,6 +12,27 @@ def collection_exists(client: QdrantClient) -> bool:
     """True when the configured collection already exists in Qdrant."""
     names = [c.name for c in client.get_collections().collections]
     return config.QDRANT_COLLECTION in names
+
+
+def ensure_source_payload_index() -> None:
+    """Create a keyword payload index on metadata.source (idempotent, best-effort).
+
+    Lets Qdrant filter by document source efficiently when retrieval is scoped to
+    a single paper (see retrieval.build_retriever). Re-creating an existing index
+    is a no-op error we swallow; filtering works without the index too, just less
+    optimally on large collections.
+    """
+    try:
+        client = QdrantClient(url=config.QDRANT_URL)
+        if not collection_exists(client):
+            return
+        client.create_payload_index(
+            collection_name=config.QDRANT_COLLECTION,
+            field_name="metadata.source",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
+    except Exception:
+        pass
 
 
 def _point_id(chunk: Document) -> str:

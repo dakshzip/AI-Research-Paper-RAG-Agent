@@ -13,7 +13,7 @@ QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
 
 # Groq LLM
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3-32b")
 # Optional: supply the key via .env so a deployment can auto-connect without the
 # user pasting it into the sidebar each session.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -23,9 +23,9 @@ CORPUS_DIR = Path(os.getenv("CORPUS_DIR", str(PROJECT_ROOT / "data" / "corpus"))
 
 # RAGAS judge — needs a stronger model than the chat LLM to emit reliable structured
 # scores; the small instant model frequently returns unparseable judgments (NaN).
-RAGAS_JUDGE_MODEL = os.getenv("RAGAS_JUDGE_MODEL", "llama-3.3-70b-versatile")
+RAGAS_JUDGE_MODEL = os.getenv("RAGAS_JUDGE_MODEL", "openai/gpt-oss-120b")
 
-# Embeddings
+# Embedding
 DENSE_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 SPARSE_EMBEDDING_MODEL = "Qdrant/bm25"
 DENSE_VECTOR_NAME = "dense"
@@ -61,4 +61,4 @@ FINAL_K = int(os.getenv("FINAL_K", "5"))
 # Document processing
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
-TEXT_PREVIEW_LENGTH = 200
+TEXT_PREVIEW_LENGTH = 100
