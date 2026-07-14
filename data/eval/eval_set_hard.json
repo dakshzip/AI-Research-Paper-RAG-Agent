@@ -1,0 +1,122 @@
+[
+  {
+    "question": "What problem arises when dot products between query and key vectors grow large before a softmax, and how is it fixed?",
+    "expected_source": "Attention is all you need.pdf"
+  },
+  {
+    "question": "How can a bidirectional text encoder be pre-trained without the model trivially seeing the words it is asked to predict?",
+    "expected_source": "BERT.pdf"
+  },
+  {
+    "question": "Which fine-tuning approach freezes all original model weights and injects small trainable rank-decomposition matrices into each layer?",
+    "expected_source": "LoRA - Low-Rank Adaptation of Large Language Models.pdf"
+  },
+  {
+    "question": "Why do exponentially-decayed estimates of the first and second moments of gradients need bias correction early in training?",
+    "expected_source": "Adam - A Method for Stochastic Optimization.pdf"
+  },
+  {
+    "question": "Why does simply stacking more layers degrade training accuracy in deep networks, and what identity-mapping-based fix solves it?",
+    "expected_source": "ResNet - Deep Residual Learning.pdf"
+  },
+  {
+    "question": "What evidence suggests that scaling a language model to hundreds of billions of parameters lets it perform new tasks from a few examples in the prompt, with no gradient updates?",
+    "expected_source": "Language models are few shot learners.pdf"
+  },
+  {
+    "question": "How does asking a model to produce intermediate reasoning steps before its final answer affect performance on arithmetic word problems?",
+    "expected_source": "Chain-of-Thought Prompting.pdf"
+  },
+  {
+    "question": "What architecture marginalizes over latent retrieved documents, combining a dense passage retriever with a pre-trained seq2seq generator for knowledge-intensive tasks?",
+    "expected_source": "RAG for NLP.pdf"
+  },
+  {
+    "question": "How can human preference data align a language model using a simple classification-style loss, skipping reward model training and reinforcement learning entirely?",
+    "expected_source": "DPO - Direct Preference Optimization.pdf"
+  },
+  {
+    "question": "Why clip the probability ratio between the new and old policy during policy-gradient updates instead of using a KL penalty?",
+    "expected_source": "PPO - Proximal Policy Optimization.pdf"
+  },
+  {
+    "question": "Describe the three-stage pipeline that turns a raw pre-trained language model into one that follows user instructions, using human demonstrations and ranked comparisons.",
+    "expected_source": "InstructGPT - Training LMs to Follow Instructions.pdf"
+  },
+  {
+    "question": "Given a fixed compute budget, is it better to train a bigger model on fewer tokens or a smaller model on more tokens, and what parameter-to-token ratio is recommended?",
+    "expected_source": "Chinchilla - Training Compute-Optimal Large Language Models.pdf"
+  },
+  {
+    "question": "Which study showed that language model loss follows smooth power laws across seven orders of magnitude of compute, and that larger models are more sample-efficient?",
+    "expected_source": "Scaling Laws for Neural Language Models.pdf"
+  },
+  {
+    "question": "How can exact attention be computed without ever materializing the full N-by-N attention matrix in GPU high-bandwidth memory?",
+    "expected_source": "FlashAttention - Fast and Memory-Efficient Exact Attention.pdf"
+  },
+  {
+    "question": "How does dividing the key-value cache into fixed-size blocks with virtual-memory-style indirection reduce fragmentation when serving many LLM requests?",
+    "expected_source": "vLLM - Efficient LLM Serving with PagedAttention.pdf"
+  },
+  {
+    "question": "In the open-weights model where each token is routed to 2 of 8 feed-forward experts, how does the router make its selection?",
+    "expected_source": "Mixtral of Experts.pdf"
+  },
+  {
+    "question": "How can natural-language supervision from 400 million web image-text pairs produce a classifier that transfers zero-shot to unseen datasets?",
+    "expected_source": "CLIP - Learning Transferable Visual Models.pdf"
+  },
+  {
+    "question": "What happens when a pure transformer with no convolutional layers is applied to image classification, and how much pre-training data does it need to outperform CNNs?",
+    "expected_source": "Vision Transformer (ViT).pdf"
+  },
+  {
+    "question": "How do generative models that gradually corrupt training data with Gaussian noise learn to reverse that corruption to draw new samples?",
+    "expected_source": "DDPM - Denoising Diffusion Probabilistic Models.pdf"
+  },
+  {
+    "question": "How can simple log-linear models learn word vectors where arithmetic like king minus man plus woman lands near queen?",
+    "expected_source": "Word2Vec - Efficient Estimation of Word Representations.pdf"
+  },
+  {
+    "question": "How can a 65-billion-parameter model be fine-tuned on a single 48GB GPU without degrading task performance?",
+    "expected_source": "QLoRA - Efficient Finetuning of Quantized LLMs.pdf"
+  },
+  {
+    "question": "How can a model be trained to critique and revise its own harmful outputs using a written set of principles instead of human harm labels?",
+    "expected_source": "Constitutional AI - Harmlessness from AI Feedback.pdf"
+  },
+  {
+    "question": "How can a language model generate its own training data to learn where inserting external API calls would reduce its perplexity?",
+    "expected_source": "Toolformer - LMs Can Teach Themselves to Use Tools.pdf"
+  },
+  {
+    "question": "Why does interleaving free-form verbal reasoning with concrete environment actions outperform acting alone when an agent answers questions using a Wikipedia lookup tool?",
+    "expected_source": "ReAct - Synergizing Reasoning and Acting in LMs.pdf"
+  },
+  {
+    "question": "What robustness benefits come from training a speech recognizer on 680,000 hours of weakly supervised multilingual audio rather than a curated single dataset?",
+    "expected_source": "Whisper - Robust Speech Recognition via Weak Supervision.pdf"
+  },
+  {
+    "question": "How can a recurrent model whose state-transition parameters depend on the input match transformer quality while scaling linearly with sequence length?",
+    "expected_source": "Mamba - Linear-Time Sequence Modeling with Selective State Spaces.pdf"
+  },
+  {
+    "question": "Which positional encoding multiplies queries and keys by rotation matrices so that their inner product depends only on the relative offset between tokens?",
+    "expected_source": "RoFormer - Rotary Position Embedding.pdf"
+  },
+  {
+    "question": "How can a student encoder be made 40% smaller and 60% faster while keeping 97% of its teacher's language-understanding performance?",
+    "expected_source": "DistilBERT - Distilled Version of BERT.pdf"
+  },
+  {
+    "question": "How can special control tokens let a model decide during generation whether to retrieve documents, and then critique whether its output is supported by them?",
+    "expected_source": "Self-RAG - Learning to Retrieve, Generate, and Critique.pdf"
+  },
+  {
+    "question": "When the relevant document sits in the middle of a long prompt rather than at the start or end, what happens to answer accuracy?",
+    "expected_source": "Lost in the Middle - How LMs Use Long Contexts.pdf"
+  }
+]

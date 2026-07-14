@@ -22,10 +22,11 @@ def evaluate_rag_response(
         from ragas import EvaluationDataset, RunConfig, evaluate
         from ragas.embeddings import LangchainEmbeddingsWrapper
         from ragas.llms import LangchainLLMWrapper
-        from ragas.metrics import answer_relevancy
+        from ragas.metrics import answer_relevancy, faithfulness
     except ImportError as exc:
         return {
             "answer_relevancy": None,
+            "faithfulness": None,
             "error": (
                 "RAGAS dependencies missing. Run: pip install ragas datasets"
             ),
@@ -65,7 +66,7 @@ def evaluate_rag_response(
         # otherwise surfaces only as an unhelpful "no usable score" message).
         result = evaluate(
             dataset=dataset,
-            metrics=[answer_relevancy],
+            metrics=[faithfulness, answer_relevancy],
             llm=evaluator_llm,
             embeddings=evaluator_embeddings,
             run_config=run_config,
@@ -73,27 +74,31 @@ def evaluate_rag_response(
         )
 
         row = result.to_pandas().iloc[0]
-        relevancy_score = row["answer_relevancy"]
 
-        # x == x is False only for NaN, which RAGAS returns when the judge could
-        # not produce a usable score.
-        relevancy_val = (
-            float(relevancy_score) if relevancy_score == relevancy_score else None
-        )
+        def _score(metric: str) -> float | None:
+            value = row[metric]
+            # x == x is False only for NaN, which RAGAS returns when the judge
+            # could not produce a usable score.
+            return float(value) if value == value else None
+
+        relevancy_val = _score("answer_relevancy")
+        faithfulness_val = _score("faithfulness")
 
         error = None
-        if relevancy_val is None:
+        if relevancy_val is None and faithfulness_val is None:
             error = (
-                f"The judge model ({config.RAGAS_JUDGE_MODEL}) did not return a usable "
-                "Answer Relevancy score. Try a different RAGAS_JUDGE_MODEL or re-run."
+                f"The judge model ({config.RAGAS_JUDGE_MODEL}) did not return usable "
+                "scores. Try a different RAGAS_JUDGE_MODEL or re-run."
             )
 
         return {
             "answer_relevancy": relevancy_val,
+            "faithfulness": faithfulness_val,
             "error": error,
         }
     except Exception as exc:
         return {
             "answer_relevancy": None,
+            "faithfulness": None,
             "error": f"RAGAS evaluation failed: {exc}",
         }

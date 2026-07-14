@@ -19,3 +19,8 @@ qdrant_data/
 data/corpus/*
 !data/corpus/.gitkeep
 AI Research Papers/
+
+# Eval run artifacts (keep the eval datasets, ignore timestamped outputs)
+data/eval/results_*.json
+data/eval/answers_*.json
+data/eval/ragas_2*.json

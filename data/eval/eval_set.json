@@ -1,0 +1,122 @@
+[
+  {
+    "question": "Why is the dot product in scaled dot-product attention divided by the square root of the key dimension?",
+    "expected_source": "Attention is all you need.pdf"
+  },
+  {
+    "question": "What are the two pre-training objectives used by BERT?",
+    "expected_source": "BERT.pdf"
+  },
+  {
+    "question": "How does LoRA reduce the number of trainable parameters when fine-tuning large language models?",
+    "expected_source": "LoRA - Low-Rank Adaptation of Large Language Models.pdf"
+  },
+  {
+    "question": "How does the Adam optimizer combine momentum with adaptive learning rates?",
+    "expected_source": "Adam - A Method for Stochastic Optimization.pdf"
+  },
+  {
+    "question": "How do residual connections help train very deep networks?",
+    "expected_source": "ResNet - Deep Residual Learning.pdf"
+  },
+  {
+    "question": "What is in-context learning and how does GPT-3 perform few-shot tasks without gradient updates?",
+    "expected_source": "Language models are few shot learners.pdf"
+  },
+  {
+    "question": "How does chain-of-thought prompting improve reasoning in large language models?",
+    "expected_source": "Chain-of-Thought Prompting.pdf"
+  },
+  {
+    "question": "How does retrieval-augmented generation combine a parametric seq2seq model with a non-parametric retriever?",
+    "expected_source": "RAG for NLP.pdf"
+  },
+  {
+    "question": "How does Direct Preference Optimization avoid training an explicit reward model?",
+    "expected_source": "DPO - Direct Preference Optimization.pdf"
+  },
+  {
+    "question": "What is the clipped surrogate objective in Proximal Policy Optimization?",
+    "expected_source": "PPO - Proximal Policy Optimization.pdf"
+  },
+  {
+    "question": "What are the three stages of the RLHF training pipeline used by InstructGPT?",
+    "expected_source": "InstructGPT - Training LMs to Follow Instructions.pdf"
+  },
+  {
+    "question": "According to Chinchilla, how should model size and training tokens be scaled together for compute-optimal training?",
+    "expected_source": "Chinchilla - Training Compute-Optimal Large Language Models.pdf"
+  },
+  {
+    "question": "What power-law relationships between loss, model size, dataset size, and compute are described in the scaling laws paper?",
+    "expected_source": "Scaling Laws for Neural Language Models.pdf"
+  },
+  {
+    "question": "How does FlashAttention use tiling to reduce memory reads and writes between GPU HBM and SRAM?",
+    "expected_source": "FlashAttention - Fast and Memory-Efficient Exact Attention.pdf"
+  },
+  {
+    "question": "How does PagedAttention manage the KV cache to improve LLM serving throughput?",
+    "expected_source": "vLLM - Efficient LLM Serving with PagedAttention.pdf"
+  },
+  {
+    "question": "How does the router in Mixtral select which experts process each token?",
+    "expected_source": "Mixtral of Experts.pdf"
+  },
+  {
+    "question": "How does CLIP use contrastive learning to align images and text in a shared embedding space?",
+    "expected_source": "CLIP - Learning Transferable Visual Models.pdf"
+  },
+  {
+    "question": "How does the Vision Transformer split an image into patches for processing?",
+    "expected_source": "Vision Transformer (ViT).pdf"
+  },
+  {
+    "question": "What is the forward noising process in denoising diffusion probabilistic models?",
+    "expected_source": "DDPM - Denoising Diffusion Probabilistic Models.pdf"
+  },
+  {
+    "question": "What are the skip-gram and CBOW architectures for learning word vectors?",
+    "expected_source": "Word2Vec - Efficient Estimation of Word Representations.pdf"
+  },
+  {
+    "question": "What is the 4-bit NormalFloat data type introduced by QLoRA?",
+    "expected_source": "QLoRA - Efficient Finetuning of Quantized LLMs.pdf"
+  },
+  {
+    "question": "How does Constitutional AI use AI feedback instead of human labels for harmlessness training?",
+    "expected_source": "Constitutional AI - Harmlessness from AI Feedback.pdf"
+  },
+  {
+    "question": "How does Toolformer teach itself to decide when to call external APIs?",
+    "expected_source": "Toolformer - LMs Can Teach Themselves to Use Tools.pdf"
+  },
+  {
+    "question": "How does ReAct interleave reasoning traces with actions when solving tasks?",
+    "expected_source": "ReAct - Synergizing Reasoning and Acting in LMs.pdf"
+  },
+  {
+    "question": "What kind of training data and supervision does Whisper use for robust speech recognition?",
+    "expected_source": "Whisper - Robust Speech Recognition via Weak Supervision.pdf"
+  },
+  {
+    "question": "What is the selection mechanism in Mamba's selective state space model?",
+    "expected_source": "Mamba - Linear-Time Sequence Modeling with Selective State Spaces.pdf"
+  },
+  {
+    "question": "How does rotary position embedding encode relative positions through rotation of query and key vectors?",
+    "expected_source": "RoFormer - Rotary Position Embedding.pdf"
+  },
+  {
+    "question": "What losses are used to distill BERT into DistilBERT during pre-training?",
+    "expected_source": "DistilBERT - Distilled Version of BERT.pdf"
+  },
+  {
+    "question": "What are the reflection tokens in Self-RAG and how do they control retrieval and critique?",
+    "expected_source": "Self-RAG - Learning to Retrieve, Generate, and Critique.pdf"
+  },
+  {
+    "question": "How does answer accuracy change depending on where relevant information is positioned within a long context?",
+    "expected_source": "Lost in the Middle - How LMs Use Long Contexts.pdf"
+  }
+]
