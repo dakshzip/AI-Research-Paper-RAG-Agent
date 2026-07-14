@@ -130,6 +130,15 @@ def _load_reranker_model():
     return get_reranker_model()
 
 
+@st.cache_data(ttl=300)
+def _cached_sources() -> list[str]:
+    """Cache the indexed-source list: get_indexed_sources() scrolls the whole
+    collection (~130 round-trips at 13k points), far too slow to repeat on every
+    Streamlit rerun — especially against a remote Qdrant. New uploads call
+    _cached_sources.clear() to refresh immediately."""
+    return get_indexed_sources()
+
+
 def _build_chain(source_filter: str | None) -> None:
     """(Re)build the retriever + RAG chain from cached components in session state.
 
@@ -189,7 +198,7 @@ def _init_rag_chain(groq_api_key: str, uploaded_files=None) -> str | None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="SCA RAG Chatbot", layout="wide")
+    st.set_page_config(page_title="AI Research Paper Query-er", layout="wide")
 
     st.markdown(
         """
@@ -555,25 +564,34 @@ def main() -> None:
     with st.sidebar:
         st.header("Setup")
 
-        groq_api_key = st.text_input(
-            "Groq API Key",
-            type="password",
-            value=config.GROQ_API_KEY,
-            help="Get your key from the Groq console, or set GROQ_API_KEY in .env.",
-        )
+        if config.PUBLIC_DEMO:
+            # Hosted demo: the key stays server-side (never rendered into the
+            # page), and visitors cannot upload into the shared index or spend
+            # tokens on RAGAS runs.
+            groq_api_key = config.GROQ_API_KEY
+            uploaded_files = None
+            enable_ragas = False
+            st.caption("Public demo — chat with the curated corpus of AI research papers.")
+        else:
+            groq_api_key = st.text_input(
+                "Groq API Key",
+                type="password",
+                value=config.GROQ_API_KEY,
+                help="Get your key from the Groq console, or set GROQ_API_KEY in .env.",
+            )
 
-        st.subheader("Upload Documents")
-        uploaded_files = st.file_uploader(
-            "Upload PDF or TXT files",
-            type=["pdf", "txt"],
-            accept_multiple_files=True,
-        )
+            st.subheader("Upload Documents")
+            uploaded_files = st.file_uploader(
+                "Upload PDF or TXT files",
+                type=["pdf", "txt"],
+                accept_multiple_files=True,
+            )
 
-        enable_ragas = st.checkbox(
-            "Enable RAGAS evaluation",
-            value=False,
-            help="Score each answer for relevancy to the question (adds a few seconds).",
-        )
+            enable_ragas = st.checkbox(
+                "Enable RAGAS evaluation",
+                value=False,
+                help="Score each answer for relevancy to the question (adds a few seconds).",
+            )
 
         qdrant_ok, qdrant_error = check_qdrant_connection()
         if qdrant_ok:
@@ -581,7 +599,7 @@ def main() -> None:
         else:
             st.error(qdrant_error)
 
-        existing_sources = get_indexed_sources() if qdrant_ok else []
+        existing_sources = _cached_sources() if qdrant_ok else []
 
         # Auto-connect to the persistent index on load so a served corpus is
         # queryable without any upload. Runs once per session when documents are
@@ -600,7 +618,9 @@ def main() -> None:
             else:
                 st.rerun()
 
-        if st.button("Process Documents and Start Chat", use_container_width=True):
+        if not config.PUBLIC_DEMO and st.button(
+            "Process Documents and Start Chat", use_container_width=True
+        ):
             if not groq_api_key:
                 st.error("Please enter your Groq API Key.")
             elif not uploaded_files:
@@ -614,6 +634,7 @@ def main() -> None:
                         if error:
                             st.error(error)
                         else:
+                            _cached_sources.clear()
                             st.rerun()
                     except Exception as exc:
                         st.error(f"Processing failed: {exc}")
@@ -636,8 +657,11 @@ def main() -> None:
             scores = st.session_state.last_ragas_scores
             if scores.get("error"):
                 st.warning(scores["error"])
-            elif scores.get("answer_relevancy") is not None:
-                st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
+            else:
+                if scores.get("faithfulness") is not None:
+                    st.metric("Faithfulness", f"{scores['faithfulness']:.2f}")
+                if scores.get("answer_relevancy") is not None:
+                    st.metric("Answer Relevancy", f"{scores['answer_relevancy']:.2f}")
 
         if st.session_state.documents_processed and existing_sources:
             st.markdown("---")

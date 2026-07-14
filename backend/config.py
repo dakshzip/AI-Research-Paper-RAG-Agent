@@ -10,7 +10,14 @@ PROMPTS_DIR = PROJECT_ROOT / "prompts"
 
 # Qdrant
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+# Required for managed Qdrant Cloud clusters; empty for a local Docker instance.
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "") or None
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
+
+# Public demo mode (set PUBLIC_DEMO=1 on the hosted deployment): hides the API-key
+# input, document upload, and RAGAS controls so anonymous visitors can only chat
+# with the curated corpus.
+PUBLIC_DEMO = os.getenv("PUBLIC_DEMO", "").lower() in ("1", "true", "yes")
 
 # Groq LLM
 GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3-32b")

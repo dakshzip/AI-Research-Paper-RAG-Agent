@@ -23,7 +23,7 @@ def ensure_source_payload_index() -> None:
     optimally on large collections.
     """
     try:
-        client = QdrantClient(url=config.QDRANT_URL)
+        client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
         if not collection_exists(client):
             return
         client.create_payload_index(
@@ -45,7 +45,7 @@ def _point_id(chunk: Document) -> str:
 def get_indexed_sources() -> list[str]:
     """Return sorted list of unique source filenames stored in the Qdrant collection."""
     try:
-        client = QdrantClient(url=config.QDRANT_URL)
+        client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
         names = [c.name for c in client.get_collections().collections]
         if config.QDRANT_COLLECTION not in names:
             return []
@@ -78,6 +78,7 @@ def connect_existing_vectorstore(dense_embeddings, sparse_embeddings) -> QdrantV
         embedding=dense_embeddings,
         sparse_embedding=sparse_embeddings,
         url=config.QDRANT_URL,
+        api_key=config.QDRANT_API_KEY,
         collection_name=config.QDRANT_COLLECTION,
         retrieval_mode=RetrievalMode.HYBRID,
         vector_name=config.DENSE_VECTOR_NAME,
@@ -88,7 +89,7 @@ def connect_existing_vectorstore(dense_embeddings, sparse_embeddings) -> QdrantV
 def check_qdrant_connection() -> tuple[bool, str]:
     """Verify Qdrant is reachable before indexing."""
     try:
-        client = QdrantClient(url=config.QDRANT_URL)
+        client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
         client.get_collections()
         return True, ""
     except Exception as exc:
@@ -120,7 +121,7 @@ def upsert_documents(
         raise ConnectionError(error)
 
     ids = [_point_id(chunk) for chunk in chunks]
-    client = QdrantClient(url=config.QDRANT_URL)
+    client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
 
     if collection_exists(client):
         vectorstore = connect_existing_vectorstore(dense_embeddings, sparse_embeddings)
@@ -133,6 +134,7 @@ def upsert_documents(
         embedding=dense_embeddings,
         sparse_embedding=sparse_embeddings,
         url=config.QDRANT_URL,
+        api_key=config.QDRANT_API_KEY,
         collection_name=config.QDRANT_COLLECTION,
         retrieval_mode=RetrievalMode.HYBRID,
         vector_name=config.DENSE_VECTOR_NAME,

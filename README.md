@@ -1,3 +1,13 @@
+---
+title: AI Research Paper RAG Agent
+emoji: 📚
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AI Research Paper RAG Agent
 
 A **Retrieval-Augmented Generation (RAG)** agent for querying AI/ML research papers. Ships with a curated corpus of landmark papers (Transformers, BERT, GPT-3, ResNet, GANs, diffusion, CLIP, RL, and more) and answers questions with grounded, paper-attributed explanations — including side-by-side **comparison tables** when several papers are relevant. Drop in your own PDFs to extend it.

@@ -1,0 +1,9 @@
+AI Research Papers/
+data/
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.claude/
